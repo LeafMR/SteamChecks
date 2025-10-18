@@ -1,9 +1,19 @@
+<<<<<<< HEAD
+
+# autochecker_launcher.py
+=======
+>>>>>>> 7619ae1 (Add autochecker launchers and README)
 import os, sys, hashlib, shutil, zipfile, platform, tempfile
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 
+<<<<<<< HEAD
+BUNDLE_URL = "https://example.com/path/to/Checks.zip"
+EXPECTED_SHA256 = ""
+=======
 BUNDLE_URL = "https://github.com/user-attachments/files/22986550/Checks.zip"
 EXPECTED_SHA256 = "b49bfbe58dd827836d69cfb5188b014a8cfcc29c25ce8c010e6f4361033b5640"
+>>>>>>> 7619ae1 (Add autochecker launchers and README)
 ENTRYPOINTS = {
     "Windows": ["run.bat", "run.cmd", "run.ps1", "main.exe"],
     "Darwin": ["run.sh", "run", "main_macos"],

@@ -1,6 +1,14 @@
+<<<<<<< HEAD
+
+# autochecker_launcher.ps1
+param(
+  [string]$BundleUrl = "https://example.com/path/to/Checks.zip",
+  [string]$ExpectedSha256 = "",
+=======
 param(
   [string]$BundleUrl = "https://github.com/user-attachments/files/22986550/Checks.zip",
   [string]$ExpectedSha256 = "b49bfbe58dd827836d69cfb5188b014a8cfcc29c25ce8c010e6f4361033b5640",
+>>>>>>> 7619ae1 (Add autochecker launchers and README)
   [switch]$Ephemeral,
   [switch]$ForceReinstall
 )
@@ -32,6 +40,10 @@ $version = if ($etag) { $etag } else { $digest.Substring(0,12) }
 $installDir = Join-Path $cacheRoot $version
 
 if ((Test-Path $installDir) -and (-not $ForceReinstall)) {
+<<<<<<< HEAD
+  # reuse cache
+=======
+>>>>>>> 7619ae1 (Add autochecker launchers and README)
 } else {
   if (Test-Path $installDir) { Remove-Item -Recurse -Force $installDir }
   New-Item -ItemType Directory -Force -Path $installDir | Out-Null
@@ -39,8 +51,13 @@ if ((Test-Path $installDir) -and (-not $ForceReinstall)) {
   [System.IO.Compression.ZipFile]::ExtractToDirectory($tmp, $installDir)
 }
 
+<<<<<<< HEAD
+$candidates = @("run.ps1","run.bat","run.cmd","main.exe")
+$subdirs = @("","dist","build","out")
+=======
 $candidates = @("Main_Checker.bat","checker.ps1","run.ps1","run.bat","run.cmd","main.exe")
 $subdirs = @("","Checks","dist","build","out")
+>>>>>>> 7619ae1 (Add autochecker launchers and README)
 $entry = $null
 foreach ($sub in $subdirs) {
   $base = if ($sub) { Join-Path $installDir $sub } else { $installDir }
