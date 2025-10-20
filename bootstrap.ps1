@@ -144,11 +144,15 @@ if (-not (Test-Path $localExePath)) {
 }
 
 Log "Launching PowerShell script: $localExePath"
-Start-Process -FilePath "powershell.exe" -ArgumentList @(
-  "-NoProfile",
-  "-ExecutionPolicy", "Bypass",
-  "-File", "`"$localExePath`""
-) -WorkingDirectory $extractedFolder
+Push-Location $extractedFolder
+try {
+  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $localExePath
+  $code = $LASTEXITCODE
+} finally {
+  Pop-Location
+}
+if ($code -ne 0) { Log "checker.ps1 exited with code $code"; exit $code }
 
 Log "Bootstrap finished successfully."
 exit 0
+
