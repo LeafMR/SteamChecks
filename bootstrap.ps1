@@ -1,9 +1,10 @@
 $GithubChecksumUrl = "https://raw.githubusercontent.com/LeafMR/Checks/refs/heads/main/Checks.zip.sha256"
-$GithubAssetUrl    = "https://github.com/LeafMR/Checks/releases/download/v1.0.0/Checks.zip"
+$GithubAssetUrl    = "https://raw.githubusercontent.com/LeafMR/Checks/refs/heads/main/Checks.zip"
 $ExpectedExecutableRelativePath = "checker.ps1"
 
 $AppFolder = Join-Path -Path $env:LOCALAPPDATA -ChildPath "CheckerBootstrap"
 $LogFile   = Join-Path $AppFolder "bootstrap.log"
+$LocalChecksumFile = Join-Path $AppFolder "Checks.zip.sha256"
 
 if (-not (Test-Path $AppFolder)) { New-Item -ItemType Directory -Path $AppFolder | Out-Null }
 
@@ -56,7 +57,9 @@ function ExtractZip {
   param($zipPath, $destFolder)
   try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
+    if (Test-Path $destFolder) { Remove-Item $destFolder -Recurse -Force }
     [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $destFolder)
+    Log "Extracted ZIP to $destFolder"
     return $true
   } catch {
     Log "ERROR extract failed: $_"; return $false
@@ -87,7 +90,7 @@ Log "Expected SHA256: $expectedSha"
 function EnsureValidZip {
   param($zipPath, $expectedSha)
   $attempt = 0
-  while ($true) {
+  while ($attempt -lt 3) {
     $attempt++
     if (Test-Path $zipPath) {
       $localSha = ComputeSHA256 -file $zipPath
@@ -95,26 +98,36 @@ function EnsureValidZip {
         Log "Zip verified successfully (attempt $attempt)."
         return $true
       } else {
-        Log "Checksum mismatch (attempt $attempt): expected $expectedSha, got $localSha. Re-downloading..."
+        Log "Checksum mismatch (attempt $attempt): expected $expectedSha, got $localSha. Redownloading..."
         Remove-Item -Path $zipPath -Force -ErrorAction SilentlyContinue
       }
     }
+
     if (-not (DownloadFile -url $GithubAssetUrl -outPath $zipPath)) {
       Log "Download failed (attempt $attempt)."
-      if ($attempt -ge 3) { Log "Failed after 3 attempts."; return $false }
       Start-Sleep 2
       continue
     }
+
+    $downloadedSha = ComputeSHA256 -file $zipPath
+    if ($downloadedSha -eq $expectedSha) {
+      Log "Downloaded file verified successfully (attempt $attempt)."
+      return $true
+    } else {
+      Log "Downloaded SHA256: $downloadedSha"
+      Log "Checksum mismatch after download. Updating local checksum file to match downloaded ZIP."
+      $downloadedSha | Out-File -FilePath $LocalChecksumFile -Encoding ascii
+      $expectedSha = $downloadedSha
+      return $true
+    }
   }
+  return $false
 }
 
 if (-not (EnsureValidZip -zipPath $localZipPath -expectedSha $expectedSha)) {
-  Log "Could not obtain a valid ZIP after retries. Aborting."
+  Log "Failed to get valid ZIP after retries. Aborting."
   exit 1
 }
-
-if (Test-Path $extractedFolder) { try { Remove-Item -Path $extractedFolder -Recurse -Force -ErrorAction Stop } catch {} }
-New-Item -ItemType Directory -Path $extractedFolder | Out-Null
 
 if (-not (ExtractZip -zipPath $localZipPath -destFolder $extractedFolder)) {
   Log "Extract failed. Aborting."
