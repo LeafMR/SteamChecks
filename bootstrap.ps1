@@ -54,7 +54,7 @@ function ExtractZip {
   param($zipPath, $destFolder)
   try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
-    [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $destFolder, $true)
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $destFolder)
     return $true
   } catch {
     Log "ERROR extract failed: $_"; return $false
@@ -128,4 +128,5 @@ if ($ans -ne 'YES') { Write-Host "Canceled."; Log "User canceled."; exit 0 }
 Log "Launching $localExePath"
 Start-Process -FilePath $localExePath
 Log "Bootstrap finished."
+
 exit 0
