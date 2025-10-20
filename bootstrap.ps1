@@ -1,18 +1,17 @@
 $GithubChecksumUrl = "https://raw.githubusercontent.com/LeafMR/Checks/refs/heads/main/Checks.zip.sha256"
-$GithubAssetUrl    = "https://raw.githubusercontent.com/LeafMR/Checks/refs/heads/main/Checks.zip"
+$GithubAssetUrl = "https://raw.githubusercontent.com/LeafMR/Checks/refs/heads/main/Checks.zip"
 $ExpectedExecutableRelativePath = "checker.ps1"
 
 $AppFolder = Join-Path -Path $env:LOCALAPPDATA -ChildPath "CheckerBootstrap"
-$LogFile   = Join-Path $AppFolder "bootstrap.log"
+$LogFile = Join-Path $AppFolder "bootstrap.log"
 $LocalChecksumFile = Join-Path $AppFolder "Checks.zip.sha256"
 
 if (-not (Test-Path $AppFolder)) { New-Item -ItemType Directory -Path $AppFolder | Out-Null }
 
 function Log {
-  param($s)
-  $t = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-  "$t`t$s" | Out-File -FilePath $LogFile -Append -Encoding utf8
-  Write-Host "$t`t$s"
+  param([string]$s)
+  $s | Out-File -FilePath $LogFile -Append -Encoding utf8
+  Write-Host $s
 }
 
 function GetRemoteText {
@@ -22,7 +21,8 @@ function GetRemoteText {
     $wc.Headers.Add("User-Agent","CheckerBootstrap/1.0")
     return $wc.DownloadString($url)
   } catch {
-    Log "ERROR fetching $url : $_"
+    Log "ERROR: couldn't fetch remote checksum."
+    Log "DETAILS: $($_.Exception.Message)"
     return $null
   }
 }
@@ -31,25 +31,29 @@ function ComputeSHA256 {
   param($file)
   try {
     $sha = [System.Security.Cryptography.SHA256]::Create()
-    $fs  = [System.IO.File]::OpenRead($file)
-    $hb  = $sha.ComputeHash($fs)
+    $fs = [System.IO.File]::OpenRead($file)
+    $hb = $sha.ComputeHash($fs)
     $fs.Close()
     ($hb | ForEach-Object { $_.ToString("x2") }) -join ""
   } catch {
-    Log "ERROR hashing $file : $_"; return $null
+    Log "ERROR: failed to hash file: $file"
+    Log "DETAILS: $($_.Exception.Message)"
+    return $null
   }
 }
 
 function DownloadFile {
   param($url, $outPath)
   try {
-    Log "Downloading $url -> $outPath"
+    Log "Downloading check files..."
     $wc = New-Object System.Net.WebClient
     $wc.Headers.Add("User-Agent","CheckerBootstrap/1.0")
     $wc.DownloadFile($url, $outPath)
     return $true
   } catch {
-    Log "ERROR download failed: $_"; return $false
+    Log "ERROR: download failed."
+    Log "DETAILS: $($_.Exception.Message)"
+    return $false
   }
 }
 
@@ -58,11 +62,13 @@ function ExtractZip {
   try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     if (Test-Path $destFolder) { Remove-Item $destFolder -Recurse -Force }
+    Log "Extracting .ZIP file..."
     [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $destFolder)
-    Log "Extracted ZIP to $destFolder"
     return $true
   } catch {
-    Log "ERROR extract failed: $_"; return $false
+    Log "ERROR: extract failed."
+    Log "DETAILS: $($_.Exception.Message)"
+    return $false
   }
 }
 
@@ -74,31 +80,34 @@ function ParseChecksum {
   $null
 }
 
-Log "Bootstrap start."
+Log "Bootstrap started."
 
-$localZipPath    = Join-Path $AppFolder "Checks.zip"
+$localZipPath = Join-Path $AppFolder "Checks.zip"
 $extractedFolder = Join-Path $AppFolder "extracted"
-$localExePath    = Join-Path $extractedFolder $ExpectedExecutableRelativePath
+$localExePath = Join-Path $extractedFolder $ExpectedExecutableRelativePath
 
 $remoteChecksumText = GetRemoteText -url $GithubChecksumUrl
-if (-not $remoteChecksumText) { Log "Could not fetch checksum."; exit 1 }
+if (-not $remoteChecksumText) { Log "Aborting."; exit 1 }
 $expectedSha = ParseChecksum -text $remoteChecksumText
-if (-not $expectedSha) { Log "Invalid checksum format."; exit 1 }
-
-Log "Expected SHA256: $expectedSha"
+if (-not $expectedSha) { Log "ERROR: invalid checksum format. Aborting."; exit 1 }
 
 function EnsureValidZip {
   param($zipPath, $expectedSha)
   $attempt = 0
   while ($attempt -lt 3) {
     $attempt++
+
     if (Test-Path $zipPath) {
       $localSha = ComputeSHA256 -file $zipPath
-      if ($localSha -eq $expectedSha) {
-        Log "Zip verified successfully (attempt $attempt)."
+      if ($localSha -and $localSha -eq $expectedSha) {
+        Log "Downloaded files & verified integrity successfully (attempt $attempt)."
         return $true
       } else {
-        Log "Checksum mismatch (attempt $attempt): expected $expectedSha, got $localSha. Redownloading..."
+        if ($localSha) {
+          Log "Checksum mismatch (attempt $attempt). Redownloading..."
+        } else {
+          Log "Could not compute local checksum (attempt $attempt). Redownloading..."
+        }
         Remove-Item -Path $zipPath -Force -ErrorAction SilentlyContinue
       }
     }
@@ -110,22 +119,20 @@ function EnsureValidZip {
     }
 
     $downloadedSha = ComputeSHA256 -file $zipPath
-    if ($downloadedSha -eq $expectedSha) {
-      Log "Downloaded file verified successfully (attempt $attempt)."
+    if ($downloadedSha -and $downloadedSha -eq $expectedSha) {
+      Log "Downloaded files & verified integrity successfully (attempt $attempt)."
       return $true
     } else {
-      Log "Downloaded SHA256: $downloadedSha"
-      Log "Checksum mismatch after download. Updating local checksum file to match downloaded ZIP."
-      $downloadedSha | Out-File -FilePath $LocalChecksumFile -Encoding ascii
-      $expectedSha = $downloadedSha
-      return $true
+      Log "ERROR: checksum mismatch after download (attempt $attempt)."
+      Log "Aborting."
+      return $false
     }
   }
   return $false
 }
 
 if (-not (EnsureValidZip -zipPath $localZipPath -expectedSha $expectedSha)) {
-  Log "Failed to get valid ZIP after retries. Aborting."
+  Log "Failed to get valid files. Aborting."
   exit 1
 }
 
@@ -139,11 +146,11 @@ Get-ChildItem -Path $extractedFolder -Recurse -File | ForEach-Object {
 }
 
 if (-not (Test-Path $localExePath)) {
-  Log "Executable not found: $ExpectedExecutableRelativePath"
+  Log "ERROR: couldn't find Checks entry script: $ExpectedExecutableRelativePath"
   exit 1
 }
 
-Log "Launching PowerShell script: $localExePath"
+Log "Launching Checks..."
 Push-Location $extractedFolder
 try {
   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $localExePath
@@ -151,8 +158,11 @@ try {
 } finally {
   Pop-Location
 }
-if ($code -ne 0) { Log "checker.ps1 exited with code $code"; exit $code }
+
+if ($code -ne 0) {
+  Log "[checker.ps1] exited with code $code"
+  exit $code
+}
 
 Log "Bootstrap finished successfully."
 exit 0
-
