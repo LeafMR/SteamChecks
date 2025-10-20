@@ -22,7 +22,7 @@ jobs:
       - name: Convert bootstrap.ps1 -> bootstrap.exe
         shell: pwsh
         run: |
-          Invoke-PS2EXE -InputFile .\bootstrap.ps1 -OutputFile .\bootstrap.exe -NoConsole
+          Invoke-PS2EXE -InputFile .\bootstrap.ps1 -OutputFile .\bootstrap.exe
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
