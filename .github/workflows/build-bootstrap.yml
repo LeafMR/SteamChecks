@@ -1,7 +1,7 @@
 name: Build bootstrap.exe (unsigned)
 on:
   push:
-    tags: ['v*.*.*']  # tag like v1.0.0 to trigger
+    tags: ['v*.*.*']
 
 jobs:
   build:
