@@ -1,8 +1,9 @@
 $GithubChecksumUrl = "https://raw.githubusercontent.com/LeafMR/Checks/refs/heads/main/Checks.zip.sha256"
 $GithubAssetUrl    = "https://github.com/LeafMR/Checks/releases/download/v1.0.0/Checks.zip"
-$ExpectedExecutableRelativePath = "checker.exe"
+$ExpectedExecutableRelativePath = "checker.ps1"
+
 $AppFolder = Join-Path -Path $env:LOCALAPPDATA -ChildPath "CheckerBootstrap"
-$LogFile = Join-Path $AppFolder "bootstrap.log"
+$LogFile   = Join-Path $AppFolder "bootstrap.log"
 
 if (-not (Test-Path $AppFolder)) { New-Item -ItemType Directory -Path $AppFolder | Out-Null }
 
@@ -115,6 +116,10 @@ if (-not (ExtractZip -zipPath $localZipPath -destFolder $extractedFolder)) {
   Write-Host "Extract failed. See log."; exit 1
 }
 
+Get-ChildItem -Path $extractedFolder -Recurse -File | ForEach-Object {
+  try { Unblock-File -Path $_.FullName -ErrorAction SilentlyContinue } catch {}
+}
+
 if (-not (Test-Path $localExePath)) {
   Write-Host "Executable not found after extract: $ExpectedExecutableRelativePath"
   Log "Missing exe: $localExePath"
@@ -125,8 +130,11 @@ Write-Host "About to run: $localExePath"
 $ans = Read-Host "Type YES to run (or anything else to cancel)"
 if ($ans -ne 'YES') { Write-Host "Canceled."; Log "User canceled."; exit 0 }
 
-Log "Launching $localExePath"
-Start-Process -FilePath $localExePath
+Log "Launching PowerShell script: $localExePath"
+Start-Process -FilePath "powershell.exe" -ArgumentList @(
+  "-NoProfile",
+  "-ExecutionPolicy", "Bypass",
+  "-File", "`"$localExePath`""
+) -WorkingDirectory $extractedFolder
 Log "Bootstrap finished."
-
 exit 0
