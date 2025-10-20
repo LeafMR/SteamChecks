@@ -11,6 +11,7 @@ function Log {
   param($s)
   $t = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
   "$t`t$s" | Out-File -FilePath $LogFile -Append -Encoding utf8
+  Write-Host "$t`t$s"
 }
 
 function GetRemoteText {
@@ -75,45 +76,49 @@ Log "Bootstrap start."
 $localZipPath    = Join-Path $AppFolder "Checks.zip"
 $extractedFolder = Join-Path $AppFolder "extracted"
 $localExePath    = Join-Path $extractedFolder $ExpectedExecutableRelativePath
+
 $remoteChecksumText = GetRemoteText -url $GithubChecksumUrl
-if (-not $remoteChecksumText) { Write-Host "Could not fetch checksum."; exit 1 }
+if (-not $remoteChecksumText) { Log "Could not fetch checksum."; exit 1 }
 $expectedSha = ParseChecksum -text $remoteChecksumText
-if (-not $expectedSha)      { Write-Host "Invalid checksum format."; exit 1 }
+if (-not $expectedSha) { Log "Invalid checksum format."; exit 1 }
+
 Log "Expected SHA256: $expectedSha"
 
-$haveValidLocal = $false
-if (Test-Path $localZipPath) {
-  Log "Found local zip at $localZipPath — hashing."
-  $localSha = ComputeSHA256 -file $localZipPath
-  if ($localSha) {
-    Log "Local SHA256: $localSha"
-    if ($localSha -eq $expectedSha) { $haveValidLocal = $true; Log "Local zip matches expected." }
-    else { Log "Checksum mismatch; will re-download." }
+function EnsureValidZip {
+  param($zipPath, $expectedSha)
+  $attempt = 0
+  while ($true) {
+    $attempt++
+    if (Test-Path $zipPath) {
+      $localSha = ComputeSHA256 -file $zipPath
+      if ($localSha -eq $expectedSha) {
+        Log "Zip verified successfully (attempt $attempt)."
+        return $true
+      } else {
+        Log "Checksum mismatch (attempt $attempt): expected $expectedSha, got $localSha. Re-downloading..."
+        Remove-Item -Path $zipPath -Force -ErrorAction SilentlyContinue
+      }
+    }
+    if (-not (DownloadFile -url $GithubAssetUrl -outPath $zipPath)) {
+      Log "Download failed (attempt $attempt)."
+      if ($attempt -ge 3) { Log "Failed after 3 attempts."; return $false }
+      Start-Sleep 2
+      continue
+    }
   }
-} else {
-  Log "No local zip found."
 }
 
-if (-not $haveValidLocal) {
-  Write-Host "Downloading official checker..."
-  if (-not (DownloadFile -url $GithubAssetUrl -outPath $localZipPath)) {
-    Write-Host "Download failed. See log at $LogFile"; exit 1
-  }
-  $downloadedSha = ComputeSHA256 -file $localZipPath
-  if (-not $downloadedSha) { Write-Host "Hashing failed."; exit 1 }
-  Log "Downloaded SHA256: $downloadedSha"
-  if ($downloadedSha -ne $expectedSha) {
-    Write-Host "Checksum mismatch on downloaded file. Aborting."
-    Log "Checksum mismatch after download — abort."
-    exit 1
-  }
-  Log "Downloaded file verified."
+if (-not (EnsureValidZip -zipPath $localZipPath -expectedSha $expectedSha)) {
+  Log "Could not obtain a valid ZIP after retries. Aborting."
+  exit 1
 }
 
 if (Test-Path $extractedFolder) { try { Remove-Item -Path $extractedFolder -Recurse -Force -ErrorAction Stop } catch {} }
 New-Item -ItemType Directory -Path $extractedFolder | Out-Null
+
 if (-not (ExtractZip -zipPath $localZipPath -destFolder $extractedFolder)) {
-  Write-Host "Extract failed. See log."; exit 1
+  Log "Extract failed. Aborting."
+  exit 1
 }
 
 Get-ChildItem -Path $extractedFolder -Recurse -File | ForEach-Object {
@@ -121,14 +126,9 @@ Get-ChildItem -Path $extractedFolder -Recurse -File | ForEach-Object {
 }
 
 if (-not (Test-Path $localExePath)) {
-  Write-Host "Executable not found after extract: $ExpectedExecutableRelativePath"
-  Log "Missing exe: $localExePath"
+  Log "Executable not found: $ExpectedExecutableRelativePath"
   exit 1
 }
-
-Write-Host "About to run: $localExePath"
-$ans = Read-Host "Type YES to run (or anything else to cancel)"
-if ($ans -ne 'YES') { Write-Host "Canceled."; Log "User canceled."; exit 0 }
 
 Log "Launching PowerShell script: $localExePath"
 Start-Process -FilePath "powershell.exe" -ArgumentList @(
@@ -136,5 +136,6 @@ Start-Process -FilePath "powershell.exe" -ArgumentList @(
   "-ExecutionPolicy", "Bypass",
   "-File", "`"$localExePath`""
 ) -WorkingDirectory $extractedFolder
-Log "Bootstrap finished."
+
+Log "Bootstrap finished successfully."
 exit 0
