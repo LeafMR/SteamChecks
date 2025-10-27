@@ -1,10 +1,10 @@
-$GithubChecksumUrl = "https://raw.githubusercontent.com/LeafMR/Checks/refs/heads/main/Checks.zip.sha256"
-$GithubAssetUrl = "https://raw.githubusercontent.com/LeafMR/Checks/refs/heads/main/Checks.zip"
+$GithubChecksumUrl = "https://raw.githubusercontent.com/LeafMR/Checks/refs/heads/main/SteamChecks.zip.sha256"
+$GithubAssetUrl = "https://raw.githubusercontent.com/LeafMR/Checks/refs/heads/main/SteamChecks.zip"
 $ExpectedExecutableRelativePath = "checker.ps1"
 
-$AppFolder = Join-Path -Path $env:LOCALAPPDATA -ChildPath "CheckerBootstrap"
+$AppFolder = Join-Path -Path $env:LOCALAPPDATA -ChildPath "Steam_CheckerBootstrap"
 $LogFile = Join-Path $AppFolder "bootstrap.log"
-$LocalChecksumFile = Join-Path $AppFolder "Checks.zip.sha256"
+$LocalChecksumFile = Join-Path $AppFolder "SteamChecks.zip.sha256"
 
 if (-not (Test-Path $AppFolder)) { New-Item -ItemType Directory -Path $AppFolder | Out-Null }
 
@@ -18,7 +18,7 @@ function GetRemoteText {
   param($url)
   try {
     $wc = New-Object System.Net.WebClient
-    $wc.Headers.Add("User-Agent","CheckerBootstrap/1.0")
+    $wc.Headers.Add("User-Agent","Steam_CheckerBootstrap/1.0")
     return $wc.DownloadString($url)
   } catch {
     Log "ERROR: couldn't fetch remote checksum."
@@ -47,7 +47,7 @@ function DownloadFile {
   try {
     Log "Downloading check files..."
     $wc = New-Object System.Net.WebClient
-    $wc.Headers.Add("User-Agent","CheckerBootstrap/1.0")
+    $wc.Headers.Add("User-Agent","Steam_CheckerBootstrap/1.0")
     $wc.DownloadFile($url, $outPath)
     return $true
   } catch {
@@ -166,3 +166,4 @@ if ($code -ne 0) {
 
 Log "Bootstrap finished successfully."
 exit 0
+
