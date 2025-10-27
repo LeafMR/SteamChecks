@@ -1,5 +1,5 @@
 $GithubChecksumUrl = "https://raw.githubusercontent.com/LeafMR/Checks/refs/heads/main/SteamChecks.zip.sha256"
-$GithubAssetUrl = "https://raw.githubusercontent.com/LeafMR/Checks/refs/heads/main/SteamChecks.zip"
+$GithubAssetUrl = "https://raw.githubusercontent.com/LeafMR/Checks/refs/heads/main/Checks.zip"
 $ExpectedExecutableRelativePath = "checker.ps1"
 
 $AppFolder = Join-Path -Path $env:LOCALAPPDATA -ChildPath "Steam_CheckerBootstrap"
@@ -166,4 +166,5 @@ if ($code -ne 0) {
 
 Log "Bootstrap finished successfully."
 exit 0
+
 
